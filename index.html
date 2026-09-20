@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Memória Urbana Inteligente - plataforma para registro e análise de problemas urbanos recorrentes." />
+  <title>Memória Urbana Inteligente</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
+
+  <div id="app">
+    <header class="site-header">
+      <div class="container header-inner">
+        <div>
+          <p class="eyebrow">Projeto Integrador de Tecnologia da Informação</p>
+          <h1>Memória Urbana Inteligente</h1>
+          <p class="subtitle">Registro, histórico e identificação de problemas recorrentes nos bairros.</p>
+        </div>
+        <button class="btn btn-secondary" type="button" @click="abrirLogin">
+          {{ adminAutenticado ? 'Área administrativa' : 'Entrar como administrador' }}
+        </button>
+      </div>
+    </header>
+
+    <main id="conteudo" class="container main-layout">
+      <section aria-labelledby="resumo-title" class="section-block">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Visão geral</p>
+            <h2 id="resumo-title">Resumo das ocorrências</h2>
+          </div>
+        </div>
+
+        <div class="stats-grid" aria-label="Indicadores do sistema">
+          <article class="stat-card">
+            <span class="stat-label">Total</span>
+            <strong>{{ ocorrencias.length }}</strong>
+            <span>ocorrências registradas</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Abertas</span>
+            <strong>{{ totalPorStatus('Aberta') }}</strong>
+            <span>aguardando acompanhamento</span>
+          </article>
+          <article class="stat-card">
+            <span class="stat-label">Em análise</span>
+            <strong>{{ totalPorStatus('Em análise') }}</strong>
+            <span>em acompanhamento</span>
+          </article>
+          <article class="stat-card highlight">
+            <span class="stat-label">Recorrências</span>
+            <strong>{{ gruposRecorrentes.length }}</strong>
+            <span>padrões identificados</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="two-columns section-block" aria-label="Cadastro e mapa">
+        <article class="panel" aria-labelledby="cadastro-title">
+          <div class="section-heading compact">
+            <div>
+              <p class="section-kicker">Novo registro</p>
+              <h2 id="cadastro-title">Cadastrar ocorrência</h2>
+            </div>
+          </div>
+
+          <form @submit.prevent="salvarOcorrencia" class="form-grid">
+            <div class="field">
+              <label for="tipo">Tipo do problema</label>
+              <select id="tipo" v-model="form.tipo" required>
+                <option value="">Selecione</option>
+                <option>Alagamento</option>
+                <option>Iluminação</option>
+                <option>Buraco</option>
+                <option>Semáforo</option>
+                <option>Coleta de lixo</option>
+                <option>Outro</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="bairro">Bairro ou região</label>
+              <input id="bairro" v-model.trim="form.bairro" required placeholder="Ex.: Centro" />
+            </div>
+
+            <div class="field full">
+              <label for="endereco">Localização</label>
+              <input id="endereco" v-model.trim="form.endereco" required placeholder="Rua, avenida, cruzamento ou referência" />
+            </div>
+
+            <div class="field full">
+              <label for="descricao">Descrição</label>
+              <textarea id="descricao" v-model.trim="form.descricao" rows="4" required maxlength="400" placeholder="Descreva o problema encontrado"></textarea>
+              <small>{{ form.descricao.length }}/400 caracteres</small>
+            </div>
+
+            <div class="field">
+              <label for="latitude">Latitude <span class="optional">(opcional)</span></label>
+              <input id="latitude" v-model.number="form.latitude" type="number" step="any" placeholder="-20.4697" />
+            </div>
+
+            <div class="field">
+              <label for="longitude">Longitude <span class="optional">(opcional)</span></label>
+              <input id="longitude" v-model.number="form.longitude" type="number" step="any" placeholder="-54.6201" />
+            </div>
+
+            <div class="field full">
+              <label for="imagem">Imagem <span class="optional">(opcional)</span></label>
+              <input id="imagem" type="file" accept="image/*" @change="selecionarImagem" />
+              <div v-if="form.imagem" class="image-preview">
+                <img :src="form.imagem" alt="Pré-visualização da imagem anexada à ocorrência" />
+                <button type="button" class="text-button" @click="form.imagem = ''">Remover imagem</button>
+              </div>
+            </div>
+
+            <div class="form-actions full">
+              <button class="btn btn-primary" type="submit">Registrar ocorrência</button>
+              <button class="btn btn-ghost" type="button" @click="limparFormulario">Limpar</button>
+            </div>
+          </form>
+          <p v-if="mensagem" class="feedback" role="status">{{ mensagem }}</p>
+        </article>
+
+        <article class="panel map-panel" aria-labelledby="mapa-title">
+          <div class="section-heading compact">
+            <div>
+              <p class="section-kicker">Distribuição espacial</p>
+              <h2 id="mapa-title">Mapa de ocorrências</h2>
+            </div>
+          </div>
+          <div id="map" class="map" role="region" aria-label="Mapa com ocorrências urbanas"></div>
+          <p class="map-note">Registros sem coordenadas utilizam uma posição aproximada apenas para demonstração do MVP.</p>
+        </article>
+      </section>
+
+      <section class="section-block" aria-labelledby="recorrencias-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Análise</p>
+            <h2 id="recorrencias-title">Problemas recorrentes</h2>
+          </div>
+        </div>
+
+        <div v-if="gruposRecorrentes.length" class="recurrence-grid">
+          <article v-for="grupo in gruposRecorrentes" :key="grupo.chave" class="recurrence-card">
+            <span class="badge">{{ grupo.tipo }}</span>
+            <h3>{{ grupo.bairro }}</h3>
+            <p><strong>{{ grupo.quantidade }} registros</strong> do mesmo tipo foram identificados nesta região.</p>
+          </article>
+        </div>
+        <div v-else class="empty-state">Ainda não existem registros suficientes para identificar recorrências.</div>
+      </section>
+
+      <section class="section-block" aria-labelledby="historico-title">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Consulta</p>
+            <h2 id="historico-title">Histórico de ocorrências</h2>
+          </div>
+          <button class="btn btn-ghost" type="button" @click="limparFiltros">Limpar filtros</button>
+        </div>
+
+        <div class="filters" aria-label="Filtros do histórico">
+          <div class="field">
+            <label for="filtroTipo">Tipo</label>
+            <select id="filtroTipo" v-model="filtros.tipo">
+              <option value="">Todos</option>
+              <option v-for="tipo in tiposDisponiveis" :key="tipo">{{ tipo }}</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtroBairro">Bairro</label>
+            <input id="filtroBairro" v-model.trim="filtros.bairro" placeholder="Filtrar por região" />
+          </div>
+          <div class="field">
+            <label for="filtroStatus">Situação</label>
+            <select id="filtroStatus" v-model="filtros.status">
+              <option value="">Todas</option>
+              <option>Aberta</option>
+              <option>Em análise</option>
+              <option>Resolvida</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="filtroPeriodo">Período</label>
+            <select id="filtroPeriodo" v-model="filtros.periodo">
+              <option value="">Todo o histórico</option>
+              <option value="7">Últimos 7 dias</option>
+              <option value="30">Últimos 30 dias</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="history-list">
+          <article v-for="item in ocorrenciasFiltradas" :key="item.id" class="occurrence-card">
+            <div class="occurrence-main">
+              <div class="occurrence-title-row">
+                <div>
+                  <span class="badge">{{ item.tipo }}</span>
+                  <h3>{{ item.bairro }}</h3>
+                </div>
+                <span class="status" :class="statusClass(item.status)">{{ item.status }}</span>
+              </div>
+              <p>{{ item.descricao }}</p>
+              <dl class="meta-list">
+                <div><dt>Local</dt><dd>{{ item.endereco }}</dd></div>
+                <div><dt>Registrado em</dt><dd>{{ formatarData(item.dataHora) }}</dd></div>
+                <div><dt>Protocolo</dt><dd>#{{ item.id }}</dd></div>
+              </dl>
+            </div>
+            <img v-if="item.imagem" class="occurrence-image" :src="item.imagem" :alt="`Imagem anexada ao registro de ${item.tipo}`" />
+            <div v-if="adminAutenticado" class="admin-actions">
+              <label :for="`status-${item.id}`">Atualizar situação</label>
+              <select :id="`status-${item.id}`" :value="item.status" @change="atualizarStatus(item.id, $event.target.value)">
+                <option>Aberta</option>
+                <option>Em análise</option>
+                <option>Resolvida</option>
+              </select>
+            </div>
+          </article>
+          <div v-if="!ocorrenciasFiltradas.length" class="empty-state">Nenhuma ocorrência encontrada com os filtros selecionados.</div>
+        </div>
+      </section>
+
+      <section class="section-block disclaimer" aria-labelledby="aviso-title">
+        <h2 id="aviso-title">Sobre a plataforma</h2>
+        <p>A Memória Urbana Inteligente organiza e evidencia problemas recorrentes registrados pela comunidade. O projeto não substitui canais oficiais de atendimento e não garante a execução de serviços públicos.</p>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container">Projeto acadêmico - UFMS - 2026</div>
+    </footer>
+
+    <div v-if="loginAberto" class="modal-backdrop" @click.self="loginAberto = false">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="login-title">
+        <button class="modal-close" type="button" aria-label="Fechar" @click="loginAberto = false">×</button>
+        <h2 id="login-title">Área administrativa</h2>
+        <p v-if="!adminAutenticado">A autenticação abaixo é apenas uma simulação acadêmica do MVP.</p>
+        <template v-if="!adminAutenticado">
+          <div class="field">
+            <label for="usuario">Usuário</label>
+            <input id="usuario" v-model="login.usuario" autocomplete="username" />
+          </div>
+          <div class="field">
+            <label for="senha">Senha</label>
+            <input id="senha" v-model="login.senha" type="password" autocomplete="current-password" @keyup.enter="autenticar" />
+          </div>
+          <p v-if="erroLogin" class="error" role="alert">{{ erroLogin }}</p>
+          <button class="btn btn-primary full-width" type="button" @click="autenticar">Entrar</button>
+          <small class="demo-credentials">Demonstração: admin / memoria2026</small>
+        </template>
+        <template v-else>
+          <p>Administrador autenticado. Os controles de alteração de situação estão disponíveis no histórico.</p>
+          <button class="btn btn-secondary full-width" type="button" @click="sairAdmin">Sair da área administrativa</button>
+        </template>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
