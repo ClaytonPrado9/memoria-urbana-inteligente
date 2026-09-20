@@ -1,0 +1,12 @@
+{
+  "name": "memoria-urbana-app",
+  "version": "1.0.0",
+  "description": "MVP acadêmico desenvolvido para o Projeto Integrador de Tecnologia da Informação da UFMS.",
+  "main": "app.js",
+  "scripts": {
+    "start": "python -m http.server 8080"
+  },
+  "keywords": ["ufms", "vue", "leaflet", "projeto-integrador"],
+  "author": "Clayton Malaquias Prado",
+  "license": "ISC"
+}
